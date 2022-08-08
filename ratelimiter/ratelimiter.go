@@ -1,6 +1,7 @@
 package ratelimiter
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -14,18 +15,22 @@ type RateLimiter struct {
 	sync.RWMutex
 }
 
-func (r *RateLimiter) Call() bool {
+func (r *RateLimiter) Call() error {
 	r.RLock()
+	if !r.isRunning {
+		return errors.New("rate limiter is not running")
+	}
+
 	if r.count == r.limit {
 		fmt.Println("Rate limited with limit:", r.limit)
-		return false
+		return errors.New("rate limited")
 	}
 	r.RUnlock()
 	r.Lock()
 	defer r.Unlock()
 	r.count += 1
 	fmt.Println("Incremented rate limit count to", r.count)
-	return true
+	return nil
 }
 
 func (r *RateLimiter) Start() {
@@ -52,9 +57,12 @@ func (r *RateLimiter) Stop() {
 	fmt.Println("Rate limiter stopped")
 }
 
-func NewRateLimiter(limit int, interval time.Duration) *RateLimiter {
+func NewRateLimiter(limit int, interval time.Duration) (*RateLimiter, error) {
+	if interval == 0*time.Second {
+		return nil, errors.New("cannot have zero interval rate limiter")
+	}
 	return &RateLimiter{
 		limit:    limit,
 		interval: interval,
-	}
+	}, nil
 }
